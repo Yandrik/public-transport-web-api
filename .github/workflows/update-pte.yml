@@ -1,0 +1,126 @@
+name: Update Public Transport Enabler
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-pte:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check for upstream PTE changes
+        id: pte
+        run: |
+          set -euo pipefail
+
+          current_sha="$(git rev-parse HEAD:sublibs/public-transport-enabler)"
+          latest_sha="$(git ls-remote https://github.com/schildbach/public-transport-enabler.git refs/heads/master | cut -f1)"
+
+          echo "current_sha=$current_sha" >> "$GITHUB_OUTPUT"
+          echo "latest_sha=$latest_sha" >> "$GITHUB_OUTPUT"
+
+          if [ "$current_sha" = "$latest_sha" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git -C sublibs/public-transport-enabler fetch origin master
+          git -C sublibs/public-transport-enabler checkout "$latest_sha"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify updated PTE
+        id: verify
+        if: steps.pte.outputs.changed == 'true'
+        run: |
+          set +e
+          ./gradlew test bootJar
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          if [ "$status" -eq 0 ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+          exit 0
+
+      - name: Open or update pull request
+        if: steps.pte.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_BRANCH: ${{ github.ref_name }}
+          BRANCH_NAME: automation/update-pte
+          CURRENT_SHA: ${{ steps.pte.outputs.current_sha }}
+          LATEST_SHA: ${{ steps.pte.outputs.latest_sha }}
+          VERIFY_STATUS: ${{ steps.verify.outputs.status }}
+          VERIFY_PASSED: ${{ steps.verify.outputs.passed }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin "$BRANCH_NAME" || true
+          git checkout -B "$BRANCH_NAME"
+          git add sublibs/public-transport-enabler
+          git commit -m "Update public-transport-enabler to ${LATEST_SHA:0:7}"
+          git push --force-with-lease --set-upstream origin "$BRANCH_NAME"
+
+          title="Update public-transport-enabler to ${LATEST_SHA:0:7}"
+          compare_url="https://github.com/schildbach/public-transport-enabler/compare/${CURRENT_SHA}...${LATEST_SHA}"
+
+          if [ "$VERIFY_PASSED" = "true" ]; then
+            pr_state="Ready for review"
+            verification="./gradlew test bootJar passed"
+            draft_arg=""
+          else
+            pr_state="Draft: verification failed"
+            verification="./gradlew test bootJar failed with exit code ${VERIFY_STATUS}"
+            draft_arg="--draft"
+          fi
+
+          cat > pr-body.md <<EOF
+          ## Summary
+          - Updates the public-transport-enabler submodule from ${CURRENT_SHA} to ${LATEST_SHA}.
+          - Upstream compare: ${compare_url}
+          - Status: ${pr_state}
+
+          ## Verification
+          - ${verification}
+          EOF
+
+          existing_number="$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number')"
+          if [ -n "$existing_number" ]; then
+            gh pr edit "$existing_number" --title "$title" --body-file pr-body.md
+            if [ "$VERIFY_PASSED" = "true" ]; then
+              gh pr ready "$existing_number" || true
+            else
+              gh pr ready "$existing_number" --undo || true
+            fi
+          else
+            gh pr create --base "$BASE_BRANCH" --head "$BRANCH_NAME" --title "$title" --body-file pr-body.md $draft_arg
+          fi
+
+      - name: Fail workflow for broken upstream update
+        if: steps.pte.outputs.changed == 'true' && steps.verify.outputs.passed != 'true'
+        run: exit ${{ steps.verify.outputs.status }}
