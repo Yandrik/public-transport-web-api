@@ -11,11 +11,13 @@ providerkey:
 ---
 
 spring:
-    profiles: openshift
+    config:
+        activate:
+            on-profile: openshift
 logging:
-    file: ${OPENSHIFT_LOG_DIR}/app.log
+    file:
+        name: ${OPENSHIFT_LOG_DIR}/app.log
 
 server:
     port: ${OPENSHIFT_DIY_PORT}
     address: ${OPENSHIFT_DIY_IP}
-

@@ -11,43 +11,42 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
-import java.time.*;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
-@Controller
+@RestController
 public class DepartureController {
-    private DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mmZ");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mmZ")
+            .withZone(ZoneId.systemDefault());
 
-    private static int counter = 0;
+    private final AtomicInteger counter = new AtomicInteger();
 
-    @Value("${thingspeak.key}")
+    @Value("${thingspeak.key:}")
     private String thingspeakKey;
 
-    @Value("${thingspeak.channel}")
+    @Value("${thingspeak.channel:field1}")
     private String thingspeakChannel;
 
-    @RequestMapping(value = "/departure", method = RequestMethod.GET)
-    @ResponseBody
-    public ResponseEntity departure(@RequestParam(value = "from", required = true) String from, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "limit", defaultValue = "10") int limit) throws IOException {
+    @GetMapping("/departure")
+    public ResponseEntity<?> departure(@RequestParam("from") String from, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "limit", defaultValue = "10") int limit) throws IOException {
         try {
             NetworkProvider provider = getNetworkProvider(providerName);
-            if (provider == null)
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
+            if (provider == null) {
+                return providerNotFound(providerName);
+            }
             QueryDeparturesResult efaData = provider.queryDepartures(from, new Date(), 120, true);
             if (efaData.status.name().equals("OK")) {
                 List<DepartureData> list = new ArrayList<>();
@@ -56,8 +55,9 @@ public class DepartureController {
                         list.addAll(convertDepartures(stationDeparture));
                     }
                     Collections.sort(list);
-                } else
+                } else {
                     list.addAll(convertDepartures(efaData.findStationDepartures(from)));
+                }
                 if(list.size() > limit)
                     list = list.subList(0,limit);
                 return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(list);
@@ -65,46 +65,45 @@ public class DepartureController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("EFA error status: " + efaData.status.name());
         }finally
         {
-            counter++;
+            counter.incrementAndGet();
         }
     }
 
-    @RequestMapping(value = "/departureFHEM", method = RequestMethod.GET)
-    @ResponseBody
-    public ResponseEntity departureFHEM(@RequestParam(value = "from", required = true) String from, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "limit", defaultValue = "10") int limit) throws IOException {
+    @GetMapping("/departureFHEM")
+    public ResponseEntity<?> departureFHEM(@RequestParam("from") String from, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "limit", defaultValue = "10") int limit) throws IOException {
         try {
             NetworkProvider provider = getNetworkProvider(providerName);
-            if (provider == null)
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
+            if (provider == null) {
+                return providerNotFound(providerName);
+            }
             QueryDeparturesResult efaData = provider.queryDepartures(from, new Date(), 120, true);
             if (efaData.status.name().equals("OK")) {
-                String data = "";
+                String data;
                 if (efaData.findStationDepartures(from) == null && !efaData.stationDepartures.isEmpty()) {
                     List<DepartureData> list = new ArrayList<>();
                     for (StationDepartures stationDeparture : efaData.stationDepartures) {
                         list.addAll(convertDepartures(stationDeparture));
                     }
                     Collections.sort(list);
-                    StringBuffer sb = new StringBuffer();
+                    StringBuilder sb = new StringBuilder();
                     sb.append("[");
                     int count = 0;
                     for (DepartureData departureData : list) {
-                        sb.append("[\"" + departureData.getNumber() + "\",\"" + departureData.getTo() + "\",\"" + departureData.getDepartureTimeInMinutes() + "\"],");
+                        sb.append("[\"").append(departureData.getNumber()).append("\",\"").append(departureData.getTo()).append("\",\"").append(departureData.getDepartureTimeInMinutes()).append("\"],");
                         count++;
                         if(count >= limit)
                             break;
                     }
-                    String lines = sb.toString();
-                    data = lines.substring(0, lines.lastIndexOf(',')) + "]";
-                } else
+                    data = trimTrailingCommaArray(sb);
+                } else {
                     data = convertDeparturesFHEM(efaData.findStationDepartures(from), limit);
+                }
                 return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(data);
             }
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("EFA error status: " + efaData.status.name());
         }finally {
-            counter++;
+            counter.incrementAndGet();
         }
-
     }
 
     @Scheduled(initialDelay=10000, fixedRate=300000)
@@ -114,7 +113,7 @@ public class DepartureController {
         String url = "http://api.thingspeak.com/update?key=";
         url += thingspeakKey;
         url += "&"+thingspeakChannel+"=";
-        url += counter;
+        url += counter.getAndSet(0);
         try {
             URL obj = new URL(url);
             HttpURLConnection con = (HttpURLConnection) obj.openConnection();
@@ -123,8 +122,6 @@ public class DepartureController {
         {
             e.printStackTrace();
         }
-        counter = 0;
-
     }
 
     private NetworkProvider getNetworkProvider(String providerName) {
@@ -132,54 +129,53 @@ public class DepartureController {
     }
 
     private String convertDeparturesFHEM(StationDepartures stationDepartures, int limit) {
-        StringBuffer sb = new StringBuffer();
+        if (stationDepartures == null || stationDepartures.departures.isEmpty()) {
+            return "[]";
+        }
+
+        StringBuilder sb = new StringBuilder();
         sb.append("[");
         Calendar cal = Calendar.getInstance();
         int count = 0;
         for (Departure departure : stationDepartures.departures) {
-            long time = 0;
-            if (departure.predictedTime != null && departure.predictedTime.after(departure.plannedTime)) {
-                time = departure.predictedTime.getTime();
-            } else {
-                time = departure.plannedTime.getTime();
-            }
-            time = (time - cal.getTimeInMillis());
+            Date departureTime = departure.getTime();
+            long time = departureTime.getTime() - cal.getTimeInMillis();
             float depMinutes = (float)time / 1000 / 60;
-            sb.append("[\"" + departure.line.label + "\",\"" + departure.destination.name + "\",\"" + (int)Math.ceil(depMinutes) + "\"],");
+            String destination = departure.destination != null ? departure.destination.name : "";
+            sb.append("[\"").append(departure.line.label).append("\",\"").append(destination).append("\",\"").append((int)Math.ceil(depMinutes)).append("\"],");
             count++;
             if(count >= limit)
                 break;
         }
-        String lines = sb.toString();
-        return lines.substring(0, lines.lastIndexOf(',')) + "]";
+        return trimTrailingCommaArray(sb);
     }
-
 
     private List<DepartureData> convertDepartures(StationDepartures stationDepartures) {
         Calendar cal = Calendar.getInstance();
-        List<DepartureData> list = new ArrayList();
-        LocalDateTime endDate = LocalDateTime.now();
+        List<DepartureData> list = new ArrayList<>();
+        if (stationDepartures == null) {
+            return list;
+        }
+
         for (Departure departure : stationDepartures.departures) {
             DepartureData data = new DepartureData();
-            data.setTo(departure.destination.name);
-            data.setToId(departure.destination.id);
+            if (departure.destination != null) {
+                data.setTo(departure.destination.name);
+                data.setToId(departure.destination.id);
+            }
             data.setProduct(departure.line.product.toString());
             data.setNumber(departure.line.label);
             if (departure.position != null)
                 data.setPlatform(departure.position.name);
-            long time;
-            //Predicted time
-            if (departure.predictedTime != null && departure.predictedTime.after(departure.plannedTime)) {
-                data.setDepartureTime(df.format(departure.predictedTime));
-                data.setDepartureTimestamp(departure.predictedTime.getTime());
+
+            Date departureTime = departure.getTime();
+            data.setDepartureTime(format(departureTime));
+            data.setDepartureTimestamp(departureTime.getTime());
+            if (departure.predictedTime != null && departure.plannedTime != null && departure.predictedTime.after(departure.plannedTime)) {
                 data.setDepartureDelay((departure.predictedTime.getTime() - departure.plannedTime.getTime()) / 1000 / 60);
-                time = departure.predictedTime.getTime();
-            } else {
-                data.setDepartureTime(df.format(departure.plannedTime));
-                data.setDepartureTimestamp(departure.plannedTime.getTime());
-                time = departure.plannedTime.getTime();
             }
-            time = (time - cal.getTimeInMillis());
+
+            long time = departureTime.getTime() - cal.getTimeInMillis();
             float depMinutes = (float)time / 1000 / 60;
             data.setDepartureTimeInMinutes((int) Math.ceil(depMinutes));
             list.add(data);
@@ -187,4 +183,19 @@ public class DepartureController {
         return list;
     }
 
+    private String trimTrailingCommaArray(StringBuilder sb) {
+        if (sb.length() > 1 && sb.charAt(sb.length() - 1) == ',') {
+            sb.setLength(sb.length() - 1);
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+
+    private String format(Date date) {
+        return DATE_FORMAT.format(date.toInstant());
+    }
+
+    private ResponseEntity<String> providerNotFound(String providerName) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
+    }
 }

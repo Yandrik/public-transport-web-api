@@ -1,7 +1,7 @@
 package de.fewi.ptwa.controller;
 
-import de.fewi.ptwa.util.ProviderUtil;
 import de.fewi.ptwa.entity.TripData;
+import de.fewi.ptwa.util.ProviderUtil;
 import de.schildbach.pte.NetworkProvider;
 import de.schildbach.pte.dto.Location;
 import de.schildbach.pte.dto.LocationType;
@@ -12,95 +12,98 @@ import de.schildbach.pte.dto.Trip;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-@Controller
+@RestController
 public class ConnectionController {
-    private DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mmZ");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mmZ")
+            .withZone(ZoneId.systemDefault());
 
-    @RequestMapping(value = "/connection", method = RequestMethod.GET)
-    @ResponseBody
-    public ResponseEntity connection(@RequestParam(value = "from", required = true) String from, @RequestParam(value = "to", required = true) String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "product", required = true) char product, @RequestParam(value = "timeOffset", required = true, defaultValue = "0") int timeOffset) throws IOException {
+    @GetMapping("/connection")
+    public ResponseEntity<?> connection(@RequestParam("from") String from, @RequestParam("to") String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam("product") char product, @RequestParam(value = "timeOffset", defaultValue = "0") int timeOffset) throws IOException {
         NetworkProvider provider = ProviderUtil.getObjectForProvider(providerName);
-        if (provider == null)
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
-        Date plannedDepartureTime = new Date(new Date().getTime() + timeOffset * 60L * 1000L);
-        char[] products = {product};
-        QueryTripsResult efaData = provider.queryTrips(new Location(LocationType.STATION, from), null, new Location(LocationType.STATION, to), plannedDepartureTime, true, Product.fromCodes(products), null, null, null, null);
+        if (provider == null) {
+            return providerNotFound(providerName);
+        }
 
+        Date plannedDepartureTime = plannedDepartureTime(timeOffset);
+        QueryTripsResult efaData = queryTrips(provider, from, to, product, plannedDepartureTime);
         if (efaData.status.name().equals("OK")) {
             List<TripData> list = filterTrips(efaData.trips, from, to, "normal", plannedDepartureTime);
 
-            if (list.size() < 1) {
+            if (list.isEmpty()) {
                 List<TripData> retryList = findMoreTrips(efaData.context, from, to, "normal", provider, plannedDepartureTime);
-                if (retryList.size() < 1)
+                if (retryList.isEmpty()) {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No trip found.");
-                else
-                    return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(retryList);
-            } else
-                return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(list);
+                }
+                return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(retryList);
+            }
+            return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(list);
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("EFA error status: " + efaData.status.name());
     }
 
-
-    @RequestMapping(value = "/connectionEsp", method = RequestMethod.GET)
-    @ResponseBody
-    public ResponseEntity departureEsp(@RequestParam(value = "from", required = true) String from, @RequestParam(value = "to", required = true) String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "product", required = true) char product, @RequestParam(value = "timeOffset", required = true, defaultValue = "0") int timeOffset) throws IOException {
+    @GetMapping("/connectionEsp")
+    public ResponseEntity<?> departureEsp(@RequestParam("from") String from, @RequestParam("to") String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam("product") char product, @RequestParam(value = "timeOffset", defaultValue = "0") int timeOffset) throws IOException {
         NetworkProvider provider = ProviderUtil.getObjectForProvider(providerName);
-        if (provider == null)
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
-        Date plannedDepartureTime = new Date(new Date().getTime() + timeOffset * 60L * 1000L);
-        char[] products = {product};
-        QueryTripsResult efaData = provider.queryTrips(new Location(LocationType.STATION, from), null, new Location(LocationType.STATION, to), plannedDepartureTime, true, Product.fromCodes(products), null, null, null, null);
+        if (provider == null) {
+            return providerNotFound(providerName);
+        }
+
+        Date plannedDepartureTime = plannedDepartureTime(timeOffset);
+        QueryTripsResult efaData = queryTrips(provider, from, to, product, plannedDepartureTime);
         if (efaData.status.name().equals("OK")) {
             List<TripData> list = filterTrips(efaData.trips, from, to, "esp", plannedDepartureTime);
 
-            if (list.size() < 1) {
+            if (list.isEmpty()) {
                 List<TripData> retryList = findMoreTrips(efaData.context, from, to, "esp", provider, plannedDepartureTime);
-                if (retryList.size() < 1)
+                if (retryList.isEmpty()) {
                     return ResponseEntity.status(HttpStatus.NOT_FOUND).body("No trip found.");
-                else
-                    return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("{\"connections\":[{\"from\":{\"departureTime\":\"" + retryList.get(0).getDepartureTime() + "\",\"plannedDepartureTimestamp\":" + retryList.get(0).getPlannedDepartureTimestamp() + ",\"delay\":" + retryList.get(0).getDepartureDelay() / 60 + ",\"to\": \"" + retryList.get(0).getTo() + "\" }}]}");
-            } else
-                return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body("{\"connections\":[{\"from\":{\"departureTime\":\"" + list.get(0).getDepartureTime() + "\",\"plannedDepartureTimestamp\":" + list.get(0).getPlannedDepartureTimestamp() + ",\"delay\":" + list.get(0).getDepartureDelay() / 60 + ",\"to\": \"" + list.get(0).getTo() + "\" }}]}");
-
+                }
+                return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(toEspResponse(retryList.get(0)));
+            }
+            return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(toEspResponse(list.get(0)));
         }
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("EFA error status: " + efaData.status.name());
     }
 
-    @RequestMapping(value = "/connectionRaw", method = RequestMethod.GET)
-    @ResponseBody
-    public List<Trip> test(@RequestParam(value = "from", required = true) String from, @RequestParam(value = "to", required = true) String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "product", required = true) char product, @RequestParam(value = "timeOffset", required = true, defaultValue = "0") int timeOffset) throws IOException {
+    @GetMapping("/connectionRaw")
+    public ResponseEntity<?> test(@RequestParam("from") String from, @RequestParam("to") String to, @RequestParam(value = "provider", required = false) String providerName, @RequestParam("product") char product, @RequestParam(value = "timeOffset", defaultValue = "0") int timeOffset) throws IOException {
         NetworkProvider provider = ProviderUtil.getObjectForProvider(providerName);
-        if (provider == null)
-            return new ArrayList<>();
-        Date plannedDepartureTime = new Date(new Date().getTime() + timeOffset * 60L * 1000L);
-        char[] products = {product};
-        QueryTripsResult efaData = provider.queryTrips(new Location(LocationType.STATION, from), null, new Location(LocationType.STATION, to), plannedDepartureTime, true, Product.fromCodes(products), null, null, null, null);
+        if (provider == null) {
+            return providerNotFound(providerName);
+        }
 
-        return efaData.trips;
+        QueryTripsResult efaData = queryTrips(provider, from, to, product, plannedDepartureTime(timeOffset));
+        return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(efaData.trips);
+    }
+
+    private QueryTripsResult queryTrips(NetworkProvider provider, String from, String to, char product, Date plannedDepartureTime) throws IOException {
+        char[] products = {product};
+        return provider.queryTrips(new Location(LocationType.STATION, from), null, new Location(LocationType.STATION, to), plannedDepartureTime, true, Product.fromCodes(products), null, null, null, null);
+    }
+
+    private Date plannedDepartureTime(int timeOffset) {
+        return new Date(System.currentTimeMillis() + timeOffset * 60L * 1000L);
     }
 
     private List<TripData> filterTrips(List<Trip> trips, String from, String to, String mode, Date plannedDepartureTime) {
-        List<TripData> list = new ArrayList();
+        List<TripData> list = new ArrayList<>();
         for (Trip trip : trips) {
             Trip.Public leg = trip.getFirstPublicLeg();
 
             if (leg != null) {
                 Date departureTime = leg.getDepartureTime();
-                if (departureTime.after(plannedDepartureTime) && leg.departure.id.equals(from) && leg.arrival.id.equals(to) && !leg.departureStop.departureCancelled) {
+                if (departureTime != null && departureTime.after(plannedDepartureTime) && from.equals(leg.departure.id) && to.equals(leg.arrival.id) && !leg.departureStop.departureCancelled) {
                     TripData data = new TripData();
                     data.setFrom(trip.from.name);
                     data.setFromId(trip.from.id);
@@ -109,55 +112,58 @@ public class ConnectionController {
                     data.setProduct(leg.line.product.toString());
                     data.setNumber(leg.line.label);
 
-                    //Planned time
-                    data.setPlannedDepartureTime(df.format(leg.departureStop.plannedDepartureTime));
-                    data.setPlannedDepartureTimestamp(leg.departureStop.plannedDepartureTime.getTime());
+                    Date plannedTime = leg.departureStop.plannedDepartureTime != null ? leg.departureStop.plannedDepartureTime : departureTime;
+                    data.setPlannedDepartureTime(format(plannedTime));
+                    data.setPlannedDepartureTimestamp(plannedTime.getTime());
 
-                    if (mode.equals("esp") && leg.departureStop.getDepartureDelay() / 1000 >= 60) {
-                        //Correct time, because trams with delay arrive most time earlier
-                        Date correctedTime = new Date(leg.departureStop.predictedDepartureTime.getTime() - 60000);
-                        data.setDepartureTime(df.format((correctedTime)));
+                    Long departureDelay = leg.departureStop.getDepartureDelay();
+                    long departureDelaySeconds = departureDelay != null ? departureDelay / 1000 : 0;
+                    Date predictedDepartureTime = leg.departureStop.predictedDepartureTime != null ? leg.departureStop.predictedDepartureTime : departureTime;
+
+                    if (mode.equals("esp") && departureDelaySeconds >= 60) {
+                        Date correctedTime = new Date(predictedDepartureTime.getTime() - 60000);
+                        data.setDepartureTime(format(correctedTime));
                         data.setDepartureTimestamp(correctedTime.getTime());
-
                     } else {
-                        //Predicted time
-                        data.setDepartureTime(df.format((leg.departureStop.predictedDepartureTime)));
-                        data.setDepartureTimestamp(leg.departureStop.predictedDepartureTime.getTime());
+                        data.setDepartureTime(format(predictedDepartureTime));
+                        data.setDepartureTimestamp(predictedDepartureTime.getTime());
                     }
 
-
-                    data.setDepartureDelay(leg.departureStop.getDepartureDelay() / 1000);
-
+                    data.setDepartureDelay(departureDelaySeconds);
                     list.add(data);
                 }
-
             }
-
         }
         return list;
     }
-    
 
     private List<TripData> findMoreTrips(QueryTripsContext context, String from, String to, String mode, NetworkProvider provider, Date plannedDepartureTime) {
-        List<TripData> data = new ArrayList();
+        List<TripData> data = new ArrayList<>();
         QueryTripsContext newContext = context;
         int count = 0;
         try {
-            while (data.size() < 1) {
-                if (count == 3)
-                    break;
-                else {
-                    QueryTripsResult efaData = provider.queryMoreTrips(newContext, true);
-                    newContext = efaData.context;
-                    data = filterTrips(efaData.trips, from, to, mode, plannedDepartureTime);
-                    count++;
-                }
+            while (data.isEmpty() && newContext != null && count < 3) {
+                QueryTripsResult efaData = provider.queryMoreTrips(newContext, true);
+                newContext = efaData.context;
+                data = filterTrips(efaData.trips, from, to, mode, plannedDepartureTime);
+                count++;
             }
-
         } catch (IOException e) {
             e.printStackTrace();
         }
 
         return data;
+    }
+
+    private String toEspResponse(TripData data) {
+        return "{\"connections\":[{\"from\":{\"departureTime\":\"" + data.getDepartureTime() + "\",\"plannedDepartureTimestamp\":" + data.getPlannedDepartureTimestamp() + ",\"delay\":" + data.getDepartureDelay() / 60 + ",\"to\": \"" + data.getTo() + "\" }}]}";
+    }
+
+    private String format(Date date) {
+        return DATE_FORMAT.format(date.toInstant());
+    }
+
+    private ResponseEntity<String> providerNotFound(String providerName) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
     }
 }

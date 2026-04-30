@@ -6,10 +6,8 @@ import org.reflections.Reflections;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
-import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -17,13 +15,12 @@ import java.util.List;
 import java.util.Set;
 
 
-@Controller
+@RestController
 public class ProviderController {
 
-    @RequestMapping(value = "/provider", method = RequestMethod.GET)
-    @ResponseBody
-    public ResponseEntity providerlist() throws IOException {
-        List<Provider> list = new ArrayList();
+    @GetMapping("/provider")
+    public ResponseEntity<List<Provider>> providerlist() throws IOException {
+        List<Provider> list = new ArrayList<>();
 
         Set<Class<? extends NetworkProvider>> reflection = new Reflections("de.schildbach.pte").getSubTypesOf(NetworkProvider.class);
         for (Class<? extends NetworkProvider> implClass : reflection) {
