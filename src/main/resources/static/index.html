@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Public Transport Web API</title>
+    <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+    <div class="shell">
+        <main class="workspace" aria-label="Public transport tools">
+            <section class="hero panel">
+                <div>
+                    <p class="eyebrow">Public Transport Web API</p>
+                    <h1>Find stations, trips, and live departure times.</h1>
+                </div>
+                <div class="provider-card">
+                    <label for="providerSelect">Provider</label>
+                    <select id="providerSelect"></select>
+                    <small id="providerDescription">Loading providers...</small>
+                </div>
+            </section>
+
+            <section class="panel stack">
+                <div class="section-heading">
+                    <div>
+                        <p class="eyebrow">Trips</p>
+                        <h2>Direct connection finder</h2>
+                    </div>
+                    <span class="pill">/connection</span>
+                </div>
+                <form id="tripForm" class="trip-form">
+                    <label for="tripFrom">Origin station ID
+                        <input id="tripFrom" name="tripFrom" placeholder="START_ID" required>
+                    </label>
+                    <label for="tripTo">Destination station ID
+                        <input id="tripTo" name="tripTo" placeholder="DESTINATION_ID" required>
+                    </label>
+                    <label for="tripProduct">Product code
+                        <input id="tripProduct" name="tripProduct" maxlength="1" value="T" required>
+                    </label>
+                    <label for="timeOffset">Offset minutes
+                        <input id="timeOffset" name="timeOffset" type="number" value="0">
+                    </label>
+                    <button type="submit">Find Trips</button>
+                </form>
+                <div id="tripResults" class="results empty-state">Enter origin and destination station IDs.</div>
+            </section>
+
+            <section class="grid-two">
+                <form id="stationForm" class="panel stack">
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">Stations</p>
+                            <h2>Search locations</h2>
+                        </div>
+                        <span class="pill">/v2/station/suggest</span>
+                    </div>
+                    <label for="stationQuery">Station, address, or POI</label>
+                    <div class="inline-form">
+                        <input id="stationQuery" name="stationQuery" type="search" autocomplete="off" placeholder="Hauptbahnhof" required>
+                        <button type="submit">Search</button>
+                    </div>
+                    <label for="locationType">Location type</label>
+                    <select id="locationType" name="locationType">
+                        <option value="*">Any</option>
+                        <option value="STATION">Station</option>
+                        <option value="ADDRESS">Address</option>
+                        <option value="POI">POI</option>
+                        <option value="COORD">Coordinate</option>
+                    </select>
+                    <div id="stationResults" class="results empty-state">Search for a station to begin.</div>
+                </form>
+
+                <section class="panel stack">
+                    <div class="section-heading">
+                        <div>
+                            <p class="eyebrow">Departures</p>
+                            <h2>Live board</h2>
+                        </div>
+                        <span class="pill">/v2/departure</span>
+                    </div>
+                    <form id="departureForm" class="stack compact-form">
+                        <label for="departureFrom">Station ID</label>
+                        <input id="departureFrom" name="departureFrom" placeholder="de:08212:1000" required>
+                        <div class="form-row">
+                            <label for="departureLimit">Limit
+                                <input id="departureLimit" name="departureLimit" type="number" min="1" max="50" value="10">
+                            </label>
+                            <label for="numberFilter">Line filter
+                                <input id="numberFilter" name="numberFilter" placeholder="optional">
+                            </label>
+                        </div>
+                        <label for="toFilter">Destination filter</label>
+                        <input id="toFilter" name="toFilter" placeholder="optional">
+                        <div class="button-row">
+                            <button type="submit">Show Departures</button>
+                            <button id="refreshDepartures" type="button" class="secondary">Refresh</button>
+                        </div>
+                        <label class="checkbox-row">
+                            <input id="autoRefresh" type="checkbox">
+                            Refresh every 30 seconds
+                        </label>
+                    </form>
+                    <div id="departureResults" class="results empty-state">Choose a station and load departures.</div>
+                </section>
+            </section>
+
+        </main>
+
+        <aside class="api-log" aria-label="API call log">
+            <div class="log-header">
+                <div>
+                    <p class="eyebrow">Trace</p>
+                    <h2>API log</h2>
+                </div>
+                <button id="clearLog" type="button" class="ghost">Clear</button>
+            </div>
+            <p class="log-note">Every backend call made by this page appears here with copyable curl and response bodies.</p>
+            <div id="apiLogEntries" class="log-entries empty-state">No API calls yet.</div>
+        </aside>
+    </div>
+
+    <template id="copyButtonTemplate">
+        <button type="button" class="copy-button">Copy</button>
+    </template>
+
+    <script src="/app.js" defer></script>
+</body>
+</html>
