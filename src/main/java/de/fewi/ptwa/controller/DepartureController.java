@@ -3,7 +3,6 @@ package de.fewi.ptwa.controller;
 import de.fewi.ptwa.entity.DepartureData;
 import de.fewi.ptwa.util.ProviderUtil;
 import de.schildbach.pte.NetworkProvider;
-import de.schildbach.pte.VagfrProvider;
 import de.schildbach.pte.dto.Departure;
 import de.schildbach.pte.dto.QueryDeparturesResult;
 import de.schildbach.pte.dto.StationDepartures;
@@ -129,12 +128,7 @@ public class DepartureController {
     }
 
     private NetworkProvider getNetworkProvider(String providerName) {
-        NetworkProvider provider;
-        if (providerName != null) {
-            provider = ProviderUtil.getObjectForProvider(providerName);
-        } else
-            provider = new VagfrProvider();
-        return provider;
+        return ProviderUtil.getObjectForProvider(providerName);
     }
 
     private String convertDeparturesFHEM(StationDepartures stationDepartures, int limit) {

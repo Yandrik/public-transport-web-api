@@ -3,9 +3,11 @@ server:
 thingspeak:
     key:
     channel: field1
+provider:
+   default: Kvv
 providerkey:
-   navitia:
    bvg:
+   vbb:
 ---
 
 spring:
@@ -16,5 +18,4 @@ logging:
 server:
     port: ${OPENSHIFT_DIY_PORT}
     address: ${OPENSHIFT_DIY_IP}
-
 

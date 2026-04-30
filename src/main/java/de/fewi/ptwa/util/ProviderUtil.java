@@ -1,53 +1,66 @@
 package de.fewi.ptwa.util;
 
-import de.schildbach.pte.AbstractNavitiaProvider;
 import de.schildbach.pte.NetworkProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.lang.reflect.InvocationTargetException;
-
 @Component
 public class ProviderUtil {
 
-    private static String navitiaKey;
-    
-    private static String bvgKey;
+    private static String defaultProviderName = "Kvv";
+
+    private static String bvgKey = "";
+
+    private static String vbbKey = "";
 
     public static NetworkProvider getObjectForProvider(String providerName) {
-        if(providerName == null || providerName.length() < 1)
+        String effectiveProviderName = providerName;
+        if (effectiveProviderName == null || effectiveProviderName.isBlank()) {
+            effectiveProviderName = defaultProviderName;
+        }
+        if(effectiveProviderName == null || effectiveProviderName.length() < 1)
             return null;
         try {
-            Class<?> providerClass = Class.forName("de.schildbach.pte." + providerName + "Provider");
-            if(providerClass.isAssignableFrom(AbstractNavitiaProvider.class))
-            {
-                return  (NetworkProvider)providerClass.getDeclaredConstructor(String.class).newInstance(navitiaKey);
+            Class<?> providerClass = Class.forName("de.schildbach.pte." + normalizeProviderName(effectiveProviderName) + "Provider");
+            if (!NetworkProvider.class.isAssignableFrom(providerClass)) {
+                return null;
             }
-            if(providerName.equals("Bvg"))
+            if(effectiveProviderName.equalsIgnoreCase("Bvg"))
             {
                 return  (NetworkProvider)providerClass.getDeclaredConstructor(String.class).newInstance(bvgKey);
             }
-            return (NetworkProvider)providerClass.newInstance();
-        } catch (ClassNotFoundException e) {
-            return null;
-        } catch (InstantiationException e) {
-            return null;
-        } catch (IllegalAccessException e) {
-            return null;
-        } catch (NoSuchMethodException e) {
-            return null;
-        } catch (InvocationTargetException e) {
+            if(effectiveProviderName.equalsIgnoreCase("Vbb"))
+            {
+                return  (NetworkProvider)providerClass.getDeclaredConstructor(String.class).newInstance(vbbKey);
+            }
+            return (NetworkProvider)providerClass.getDeclaredConstructor().newInstance();
+        } catch (ReflectiveOperationException e) {
             return null;
         }
     }
-    
-    @Value("${providerkey.navitia}")
-    public void setNavitiaKey(String navitiaKey) {
-        ProviderUtil.navitiaKey = navitiaKey;
+
+    private static String normalizeProviderName(String providerName) {
+        if (providerName.length() == 1) {
+            return providerName.toUpperCase();
+        }
+        if (providerName.equals(providerName.toUpperCase())) {
+            return providerName.substring(0, 1).toUpperCase() + providerName.substring(1).toLowerCase();
+        }
+        return providerName.substring(0, 1).toUpperCase() + providerName.substring(1);
     }
 
-    @Value("${providerkey.bvg}")
+    @Value("${provider.default:Kvv}")
+    public void setDefaultProviderName(String defaultProviderName) {
+        ProviderUtil.defaultProviderName = defaultProviderName;
+    }
+
+    @Value("${providerkey.bvg:}")
     public void setBvgKey(String bvgKey) {
         ProviderUtil.bvgKey = bvgKey;
+    }
+
+    @Value("${providerkey.vbb:}")
+    public void setVbbKey(String vbbKey) {
+        ProviderUtil.vbbKey = vbbKey;
     }
 }

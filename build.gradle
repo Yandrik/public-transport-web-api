@@ -1,62 +1,33 @@
-buildscript {
-	ext {
-		springBootVersion = '1.3.1.RELEASE'
-	}
-	repositories {
-		mavenCentral()
-	}
-	dependencies {
-		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}") 
-	}
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.0.6'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
-apply plugin: 'java'
-apply plugin: 'eclipse'
-apply plugin: 'idea'
-apply plugin: 'spring-boot' 
+group = 'de.fewi'
+version = '0.0.1-SNAPSHOT'
 
-jar {
-	baseName = 'public-transport-web-api'
-	version = '0.0.1-SNAPSHOT'
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
-
-springBoot {
-	executable = true
-}
-
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
 
 repositories {
-	mavenCentral()
-	flatDir {
-		dirs 'libs'
-	}
+    mavenCentral()
 }
-
 
 dependencies {
-	compile('org.springframework.boot:spring-boot-starter-web')
-	compile("org.springframework.boot:spring-boot-devtools")
-	compile('org.reflections:reflections-maven:0.9.8')
-	compile name: 'jade-plugin-common-1.3.8'
-	compile project(':sublibs:public-transport-enabler:enabler')
-	testCompile('org.springframework.boot:spring-boot-starter-test') 
+    implementation project(':public-transport-enabler')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.reflections:reflections:0.10.2'
+
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-project(':sublibs:public-transport-enabler:enabler') {
-	repositories {
-		jcenter()
-	}
-}
-
-eclipse {
-	classpath {
-		 containers.remove('org.eclipse.jdt.launching.JRE_CONTAINER')
-		 containers 'org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.8'
-	}
-}
-
-task wrapper(type: Wrapper) {
-	gradleVersion = '2.9'
+tasks.named('test') {
+    useJUnitPlatform()
 }

@@ -2,7 +2,6 @@ package de.fewi.ptwa.controller;
 
 import de.fewi.ptwa.util.ProviderUtil;
 import de.schildbach.pte.NetworkProvider;
-import de.schildbach.pte.VagfrProvider;
 import de.schildbach.pte.dto.Location;
 import de.schildbach.pte.dto.LocationType;
 import de.schildbach.pte.dto.SuggestLocationsResult;
@@ -28,11 +27,7 @@ public class StationController {
     @RequestMapping(value = "/station/suggest", method = RequestMethod.GET)
     @ResponseBody
     public ResponseEntity suggest(@RequestParam("q") final String query, @RequestParam(value = "provider", required = false) String providerName, @RequestParam(value = "locationType", required = false) String stationType) throws IOException {
-        NetworkProvider provider;
-        if (providerName != null) {
-            provider = ProviderUtil.getObjectForProvider(providerName);
-        } else
-            provider = new VagfrProvider();
+        NetworkProvider provider = ProviderUtil.getObjectForProvider(providerName);
         if (provider == null)
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Provider " + providerName + " not found or can not instantiated...");
         SuggestLocationsResult suggestLocations = provider.suggestLocations(query);

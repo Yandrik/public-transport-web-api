@@ -1,0 +1,37 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'de.schildbach.pte'
+version = 'SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.squareup.okhttp3:logging-interceptor:4.12.0'
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+    implementation 'org.json:json:20090211'
+    implementation 'net.sf.kxml:kxml2:2.3.0'
+}
+
+sourceSets {
+    main {
+        java.srcDirs = [rootProject.file('sublibs/public-transport-enabler/src')]
+        resources.srcDirs = [rootProject.file('sublibs/public-transport-enabler/src')]
+    }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 8
+}

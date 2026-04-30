@@ -6,14 +6,8 @@
 package de.fewi.ptwa.controller.v2.model;
 
 import de.fewi.ptwa.controller.v2.PropertyReader;
-import de.schildbach.pte.BvgProvider;
-import de.schildbach.pte.KvvProvider;
+import de.fewi.ptwa.util.ProviderUtil;
 import de.schildbach.pte.NetworkProvider;
-import de.schildbach.pte.VbbProvider;
-import de.schildbach.pte.VmsProvider;
-import org.springframework.beans.factory.annotation.Value;
-
-import java.lang.reflect.InvocationTargetException;
 
 /**
  *
@@ -21,15 +15,12 @@ import java.lang.reflect.InvocationTargetException;
  */
 public enum ProviderEnum {
 
-    KVV(KvvProvider.class), BVG(BvgProvider.class), VMS(VmsProvider.class), VBB(VbbProvider.class);
+    KVV("Kvv"), BVG("Bvg"), VBB("Vbb");
+    
+    private final String providerName;
 
-    @Value("${providerkey.bvg}")
-    private String bvgKey;
-   
-    private final Class<? extends NetworkProvider> providerClass;
-
-    ProviderEnum(Class<? extends NetworkProvider> providerClass) {
-        this.providerClass = providerClass;
+    ProviderEnum(String providerName) {
+        this.providerName = providerName;
     }
 
     public String label() {
@@ -37,17 +28,11 @@ public enum ProviderEnum {
     }
 
     public NetworkProvider newNetworkProvider() {
-        try {
-            if(providerClass.getName().equals(BvgProvider.class.getName()))
-                return  (NetworkProvider)providerClass.getDeclaredConstructor(String.class).newInstance(bvgKey);
-            return providerClass.newInstance();
-        } catch (InstantiationException | IllegalAccessException ex) {
-            throw new RuntimeException("error on instantiation of networkprovider '" + name() + "'",ex);
-        } catch (NoSuchMethodException ex) {
-            throw new RuntimeException("error on instantiation of networkprovider '" + name() + "'",ex);
-        } catch (InvocationTargetException ex) {
-            throw new RuntimeException("error on instantiation of networkprovider '" + name() + "'",ex);
+        NetworkProvider networkProvider = ProviderUtil.getObjectForProvider(providerName);
+        if (networkProvider == null) {
+            throw new RuntimeException("error on instantiation of networkprovider '" + name() + "'");
         }
+        return networkProvider;
     }
     
     public Provider asProvider() {
