@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+.nb-gradle
+build
+**/build
+nbproject
+*.iml
+.travis.yml
+.openshift
+server_configuration.txt

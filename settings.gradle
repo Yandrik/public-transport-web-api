@@ -1,1 +1,8 @@
-include ':sublibs:public-transport-enabler:enabler'
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+}
+
+rootProject.name = 'public-transport-web-api'
+
+include 'public-transport-enabler'
+project(':public-transport-enabler').projectDir = file('gradle/pte-adapter')
