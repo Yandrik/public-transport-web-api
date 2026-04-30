@@ -1,186 +1,154 @@
-# public-transport-web-api [![Build Status](https://travis-ci.org/fewi/public-transport-web-api.svg?branch=master)](https://travis-ci.org/fewi/public-transport-web-api)
+# public-transport-web-api
 
-Project description
-----------------------
+Small Spring Boot web API around [public-transport-enabler](https://github.com/schildbach/public-transport-enabler).
 
-This application is a small web api for the [public-transport-enabler](https://github.com/schildbach/public-transport-enabler).
+The project tracks PTE from its `master` branch because upstream does not publish releases or tags. A weekly GitHub Actions workflow checks for new upstream commits and opens an update PR.
 
-I started this project for an IoT Application with the ESP8266. The repository can be found here: [Internet-of-Things-with-ESP8266](https://github.com/fewi/Internet-of-Things-with-ESP8266)
+## Requirements
 
+- Java 25 LTS
+- Docker, optional for container builds
+- Git submodules enabled for PTE
 
-Checkout from GitHub
-----------
-Don't forget to init and update git submodules for the public-transport-enabler library.
+## Checkout
 
+```bash
+git clone --recurse-submodules https://github.com/fewi/public-transport-web-api.git
 cd public-transport-web-api
-
-git submodule init
-
-git submodule update
-
-Run the application
--------------
-
 ```
+
+If the repository was already cloned without submodules:
+
+```bash
+git submodule update --init --recursive
+```
+
+## Run Locally
+
+```bash
 ./gradlew bootRun
 ```
-Test URL for your Browser: http://localhost:8080/connection?from=6906508&to=6930811&product=T
 
-----------
+The API listens on `http://localhost:8080` by default.
 
+## Build And Test
 
-REST Endpoint description
--------------------
+```bash
+./gradlew test bootJar
+```
 
-### GET:  /provider
- With this endpoint you can get all existing provider which can be used as optional parameter, default provider is VAG Freiburg (Vagfr)  
- 
-**Example:** 
-/provider
+## Configuration
 
-----------
+Spring Boot environment variables can override the defaults:
 
-### GET:  /station/suggest
- With this endpoint you can get the station ids which you need to use later.  
- 
-**Parameter:**
- 
- 1. q -- Name of station you want to search
- 2. (optional) providerName -- Name of the provider, for example: Vagfr
- 3. (optional) locationType -- type of the locations, default: ANY, possible values. ANY, STATION, STREET, POI
+- `SERVER_PORT`, default `8080`
+- `PROVIDER_DEFAULT`, default `Kvv`
+- `PROVIDERKEY_BVG`, optional BVG authorization value
+- `PROVIDERKEY_VBB`, optional VBB authorization value
+- `THINGSPEAK_KEY`, optional ThingSpeak key
+- `THINGSPEAK_CHANNEL`, default `field1`
 
-**Example:** 
-/station/suggest?q=Technisches+Rathaus
+`VagfrProvider` and `VmsProvider` no longer exist in current PTE, so `Kvv` is now the default provider.
 
-----------
+## Docker
 
-### GET: /connection
-Lists all trips from one station to another with departure time and line number. 
+Build the image:
 
-**Please note that only direct connections will be listed**
+```bash
+docker build -t public-transport-web-api .
+```
 
- **Parameter:**
- 
- 1. from -- Station id from departure station
- 2. to -- Station id from the arrival station
- 3. product -- Product you want to use ( T = Tram, B = Bus)
- 4. (optional) timeOffset -- Minutes e.g. you need to walk to the station.
- 5. (optional) providerName -- Name of the provider, for example: Vagfr
- 
-**Example:** 
-/connection?from=6906508&to=6930811&product=T
+Run the container:
 
-----------
+```bash
+docker run --rm -p 8080:8080 public-transport-web-api
+```
 
-### GET: /departure
-Lists all departure trains of the given station
+Pass provider keys as environment variables when needed:
 
- **Parameter:**
+```bash
+docker run --rm -p 8080:8080 -e PROVIDERKEY_BVG=... public-transport-web-api
+```
 
- 1. from -- Station id from departure station
- 2. (optional) providerName -- Name of the provider, for example: Vagfr
- 3. (optional) limit -- Limit the result set, default 10
+## PTE Updates
 
-**Example:**
-/departure?from=6906508
+`.github/workflows/update-pte.yml` runs weekly and can also be started manually.
 
-----------
+When a new PTE commit exists, the workflow updates the submodule and runs `./gradlew test bootJar`.
 
-### GET: /connectionEsp
-Get next departure time for your trip. Lightwight for easy processing with the ESP8266  
-**Please note that only direct connections will be listed**
+If verification passes, it opens or updates a normal PR. If verification fails, it opens or updates a draft PR and fails the workflow so the broken upstream integration is visible.
 
- **Parameter:**
- 
- 1. from -- Station id from departure station
- 2. to -- Station id from the arrival station
- 3. product -- Product you want to use ( T = Tram, B = Bus)
- 4. (optional) timeOffset -- Minutes e.g. you need to walk to the station.
- 5. (optional) providerName -- Name of the provider, for example: Vagfr
- 
-**Example:** 
-/connectionEsp?from=6906508&to=6930811&product=T&timeOffset=5
+## Endpoints
 
-----------
+### `GET /provider`
 
-### GET: /departureFHEM
-Lists all departure trains of the given station in the format for FHEM. http://forum.fhem.de/index.php/topic,48255.0.html
+Lists available PTE providers discovered on the classpath.
 
- **Parameter:**
+### `GET /station/suggest`
 
- 1. from -- Station id from departure station
- 2. (optional) providerName -- Name of the provider, for example: Vagfr
- 3. (optional) limit -- Limit the result set, default 10
+Suggests matching station locations.
 
-**Example:**
-/departureFHEM?from=6906508&limit=6
+Parameters:
 
-----------
+- `q`, station query
+- `provider`, optional provider name, example `Kvv`
+- `locationType`, optional `ANY`, `STATION`, `ADDRESS`, `POI`, `COORD`, or `*`
 
-### GET: /connectionRaw
-Lists all trips from one station to another with with all data the public-transport-enabler libary delivers.
+Example:
 
- **Parameter:**
- 
- 1. from -- Station id from departure station
- 2. to -- Station id from the arrival station
- 3. product -- Product you want to use ( T = Tram, B = Bus)
- 4. (optional) timeOffset -- Minutes e.g. you need to walk to the station. 
- 5. (optional) providerName -- Name of the provider, for example: Vagfr
- 
-**Example:** 
-/connectionRaw?from=6906508&to=6930811&product=T
+```text
+/station/suggest?q=Hauptbahnhof&provider=Kvv
+```
 
-----------
+### `GET /departure`
 
-Run the application in Openshift
--------------
-Based on description from Rafal Borowiec the original description you can found here: [https://github.com/kolorobot/openshift-diy-spring-boot-gradle]
-### Prerequisite
- 
-Before we can start building the application, we need to have an OpenShift free account and client tools installed.
- 
-### Step 1: Create DIY application
- 
-To create an application using client tools, type the following command:
- 
-     rhc app create <app-name> diy-0.1
- 
-This command creates an application *<app-name>* using *DIY* cartridge and clones the repository to *<app-name>* directory.
- 
-### Step 2: Delete Template Application Source code
- 
-OpenShift creates a template project that can be freely removed:
- 
-     git rm -rf .openshift README.md diy misc
- 
-Commit the changes:
- 
-     git commit -am "Removed template application source code"
- 
-### Step 3: Pull Source code from GitHub
- 
-     git remote add upstream https://github.com/fewi/vagfr-rest-wrapper
-     git pull -s recursive -X theirs upstream master
- 
-### Step 4: Push changes
- 
-The basic template is ready to be pushed to OpenShift:
- 
-     git push
- 
-The initial deployment (build and application startup) will take some time (up to several minutes). Subsequent deployments are a bit faster:
- 
-     remote: BUILD SUCCESSFUL
-     remote: Starting DIY cartridge
-     remote: XNIO NIO Implementation Version 3.3.0.Final
-     remote: s.b.c.e.t.TomcatEmbeddedServletContainer : Tomcat started on port(s): 8080 (http)
-     remote: d.f.vagfr.VagfrRestWrapperApplication    : Started VagfrRestWrapperApplication in 7.114 seconds (JVM running for 8.323)
- 
-You can now browse to: `http://<app-name>.rhcloud.com/provider` and you should see:
- 
-     [{"name":"Vmv","aClass":"VmvProvider"},{"name":"Vbb","aClass":"VbbProvider"},{"name":"Sf","aClass":"SfProvider"},{"name":"Gvh","aClass":"GvhProvider"},{"name":"Mvg","aClass":"MvgProvider"},{"name":"Oebb","aClass":"OebbProvider"},{"name":"Mersey","aClass":"MerseyProvider"},{"name":"Bvg","aClass":"BvgProvider"},{"name":"Vao","aClass":"VaoProvider"},{"name":"Vagfr","aClass":"VagfrProvider"},{"name":"Paris","aClass":"ParisProvider"},{"name":"Nasa","aClass":"NasaProvider"},{"name":"Linz","aClass":"LinzProvider"},{"name":"Lu","aClass":"LuProvider"},{"name":"Septa","aClass":"SeptaProvider"},{"name":"Vvs","aClass":"VvsProvider"},{"name":"Vvo","aClass":"VvoProvider"},{"name":"Met","aClass":"MetProvider"},{"name":"Nvv","aClass":"NvvProvider"},{"name":"Tfi","aClass":"TfiProvider"},{"name":"Sydney","aClass":"SydneyProvider"},{"name":"Zvv","aClass":"ZvvProvider"},{"name":"Vrr","aClass":"VrrProvider"},{"name":"Ding","aClass":"DingProvider"},{"name":"Nri","aClass":"NriProvider"},{"name":"Nvbw","aClass":"NvbwProvider"},{"name":"Vms","aClass":"VmsProvider"},{"name":"Stockholm","aClass":"StockholmProvider"},{"name":"Rt","aClass":"RtProvider"},{"name":"Se","aClass":"SeProvider"},{"name":"Jet","aClass":"JetProvider"},{"name":"Bsvag","aClass":"BsvagProvider"},{"name":"Bayern","aClass":"BayernProvider"},{"name":"Vbl","aClass":"VblProvider"},{"name":"Tlem","aClass":"TlemProvider"},{"name":"Vor","aClass":"VorProvider"},{"name":"Vgn","aClass":"VgnProvider"},{"name":"Bvb","aClass":"BvbProvider"},{"name":"Svv","aClass":"SvvProvider"},{"name":"Invg","aClass":"InvgProvider"},{"name":"Avv","aClass":"AvvProvider"},{"name":"Vvm","aClass":"VvmProvider"},{"name":"Pl","aClass":"PlProvider"},{"name":"Vvv","aClass":"VvvProvider"},{"name":"Sncb","aClass":"SncbProvider"},{"name":"Sbb","aClass":"SbbProvider"},{"name":"Dub","aClass":"DubProvider"},{"name":"Bahn","aClass":"BahnProvider"},{"name":"Vbn","aClass":"VbnProvider"},{"name":"Vrn","aClass":"VrnProvider"},{"name":"Vrs","aClass":"VrsProvider"},{"name":"Vgs","aClass":"VgsProvider"},{"name":"Wien","aClass":"WienProvider"},{"name":"Italy","aClass":"ItalyProvider"},{"name":"Ns","aClass":"NsProvider"},{"name":"Dsb","aClass":"DsbProvider"},{"name":"Mvv","aClass":"MvvProvider"},{"name":"Sh","aClass":"ShProvider"},{"name":"Kvv","aClass":"KvvProvider"},{"name":"Vvt","aClass":"VvtProvider"},{"name":"Atc","aClass":"AtcProvider"},{"name":"Paca","aClass":"PacaProvider"},{"name":"Eireann","aClass":"EireannProvider"},{"name":"FrenchSouthWest","aClass":"FrenchSouthWestProvider"},{"name":"Stv","aClass":"StvProvider"},{"name":"Ivb","aClass":"IvbProvider"}]
- 
-### Under the hood
- 
-See: [http://blog.codeleak.pl/2015/02/openshift-diy-build-spring-boot.html]
+Lists departures for a station.
+
+Parameters:
+
+- `from`, station id
+- `provider`, optional provider name, example `Kvv`
+- `limit`, optional result limit, default `10`
+
+Example:
+
+```text
+/departure?from=de:08212:1000&provider=Kvv&limit=10
+```
+
+### `GET /connection`
+
+Lists direct trips between two stations.
+
+Parameters:
+
+- `from`, origin station id
+- `to`, destination station id
+- `product`, product code such as `T` for tram or `B` for bus
+- `timeOffset`, optional minutes added to the departure time
+- `provider`, optional provider name, example `Kvv`
+
+Example:
+
+```text
+/connection?from=START_ID&to=DESTINATION_ID&product=T&provider=Kvv
+```
+
+### `GET /connectionEsp`
+
+Returns a compact JSON response for microcontroller clients.
+
+### `GET /departureFHEM`
+
+Returns compact departure data for FHEM integrations.
+
+### `GET /connectionRaw`
+
+Returns the raw PTE trip response.
+
+## v2 Endpoints
+
+- `GET /v2/provider`
+- `GET /v2/station/nearby`
+- `GET /v2/station/suggest`
+- `GET /v2/departure`

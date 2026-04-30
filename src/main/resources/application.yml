@@ -1,23 +1,10 @@
 server:
-    port: 8080
+  port: 8080
 thingspeak:
-    key:
-    channel: field1
+  key:
+  channel: field1
 provider:
-   default: Kvv
+  default: Kvv
 providerkey:
-   bvg:
-   vbb:
----
-
-spring:
-    config:
-        activate:
-            on-profile: openshift
-logging:
-    file:
-        name: ${OPENSHIFT_LOG_DIR}/app.log
-
-server:
-    port: ${OPENSHIFT_DIY_PORT}
-    address: ${OPENSHIFT_DIY_IP}
+  bvg:
+  vbb:
