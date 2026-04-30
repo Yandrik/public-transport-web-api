@@ -2,7 +2,6 @@ package de.fewi.ptwa.controller.v2;
 
 import de.fewi.ptwa.controller.v2.model.DepartureData;
 import de.fewi.ptwa.controller.v2.model.Provider;
-import de.fewi.ptwa.controller.v2.model.ProviderEnum;
 import de.fewi.ptwa.util.ProviderUtil;
 import de.schildbach.pte.NetworkProvider;
 import de.schildbach.pte.dto.Departure;
@@ -36,8 +35,11 @@ public class Controller {
     @GetMapping("/v2/provider")
     public ResponseEntity<List<Provider>> providerlist() throws IOException {
         List<Provider> list = new ArrayList<>();
-        for (ProviderEnum each : ProviderEnum.values()) {
-            list.add(each.asProvider());
+        for (ProviderUtil.ProviderInfo providerInfo : ProviderUtil.getAvailableProviders()) {
+            Provider provider = new Provider();
+            provider.setName(providerInfo.id());
+            provider.setDescription(providerInfo.providerName());
+            list.add(provider);
         }
         return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.APPLICATION_JSON).body(list);
     }

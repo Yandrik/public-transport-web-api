@@ -43,31 +43,56 @@ Spring Boot environment variables can override the defaults:
 
 - `SERVER_PORT`, default `8080`
 - `PROVIDER_DEFAULT`, default `Kvv`
-- `PROVIDERKEY_BVG`, optional BVG authorization value
-- `PROVIDERKEY_VBB`, optional VBB authorization value
+- `PROVIDERKEY_<PROVIDER_ID>`, optional authorization value for providers that require one, for example `PROVIDERKEY_BVG` or `PROVIDERKEY_AVV_AUGSBURG`
 - `THINGSPEAK_KEY`, optional ThingSpeak key
 - `THINGSPEAK_CHANNEL`, default `field1`
 
 `VagfrProvider` and `VmsProvider` no longer exist in current PTE, so `Kvv` is now the default provider.
 
-## Docker
+## Running with Docker
 
-Build the image:
+Use the published GHCR image:
+
+```bash
+docker run --rm -p 8080:8080 ghcr.io/yandrik/public-transport-web-api:latest
+```
+
+Or build and run the image locally:
 
 ```bash
 docker build -t public-transport-web-api .
-```
-
-Run the container:
-
-```bash
 docker run --rm -p 8080:8080 public-transport-web-api
 ```
 
-Pass provider keys as environment variables when needed:
+Pass provider keys and other Spring Boot settings as environment variables when needed:
 
 ```bash
-docker run --rm -p 8080:8080 -e PROVIDERKEY_BVG=... public-transport-web-api
+docker run --rm -p 8080:8080 -e PROVIDERKEY_BVG=... ghcr.io/yandrik/public-transport-web-api:latest
+```
+
+The container listens on `8080` by default. Change the internal port with `SERVER_PORT` and the published host port with Docker's `-p` flag.
+
+### Docker Compose
+
+This repository includes `compose.yml`, so you can start the API with:
+
+```bash
+docker compose up --build
+```
+
+Minimal Compose example using the published image:
+
+```yaml
+services:
+  public-transport-web-api:
+    image: ghcr.io/yandrik/public-transport-web-api:latest
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: 8080
+      PROVIDER_DEFAULT: Kvv
+      PROVIDERKEY_BVG: ""
+      PROVIDERKEY_AVV_AUGSBURG: ""
 ```
 
 ## PTE Updates
@@ -83,6 +108,8 @@ If verification passes, it opens or updates a normal PR. If verification fails, 
 ### `GET /provider`
 
 Lists available PTE providers discovered on the classpath.
+
+Provider names are exposed as PTE-style uppercase IDs, for example `KVV`, `BVG`, `AVV_AUGSBURG`, and `OEBB`.
 
 ### `GET /station/suggest`
 
